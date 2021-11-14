@@ -1,0 +1,3 @@
+start amount: 100000 testusd
+K:rKK2O0OFRi9iXd37LO9T00pQXCEFClhtaQylWQY13BM
+S:5H4fthOuigom6G30QG8ESQ9rg7JsAXbKfEks9jccXI1

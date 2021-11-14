@@ -1,0 +1,84 @@
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
+import datetime
+import backtrader as bt
+import db
+import asyncio
+def timestamp_to_datetime_2(timestamp):
+  ts_series = timestamp.apply(lambda x: (datetime.datetime.fromtimestamp(x/1000)))
+  return ts_series
+def timestamp_to_time_2(timestamp):
+  ts_series = timestamp.apply(lambda x: (datetime.datetime.fromtimestamp(x/1000)).time())
+  return ts_series
+class SmaCross(bt.SignalStrategy):
+    def __init__(self):
+        sma1, sma2 = bt.ind.SMA(period=10), bt.ind.SMA(period=30)
+        crossover = bt.ind.CrossOver(sma1, sma2)
+        self.signal_add(bt.SIGNAL_LONG, crossover)
+
+class vi_strategy(bt.SignalStrategy):
+    def notify_order(self, order):
+        if not order.alive():
+            print('{} {} {}@{}'.format(
+                bt.num2date(order.executed.dt),
+                'buy' if order.isbuy() else 'sell',
+                order.executed.size,
+                order.executed.price)
+            )
+
+    def notify_trade(self, trade):
+        if trade.isclosed:
+            print('profit {}'.format(trade.pnlcomm))
+
+    def __init__(self):
+        vi_diff=df_vi.loc[:,'VI_DIFF']
+        vi_pos=df_vi.loc[:,'VI_POS']
+        vi_neg=df_vi.loc[:,'VI_NEG']
+        self.crossover = bt.ind.CrossOver(vi_pos, vi_neg)
+        self.signal_add(bt.SIGNAL_LONG, self.crossover)
+
+
+async def main():
+
+    c = await db.db_connect() 
+    global df_vi 
+    global df_daily
+    # LOAD DAILY
+    df_hc = await db.historical_candle_db_load()
+    df_hc['DT']= timestamp_to_datetime_2(df_hc['MTS'])
+    # df_hc['TIME'] = timestamp_to_time_2(df_hc['MTS'])
+
+    df_hc.set_index('DT')
+    #LOAD VI
+    df_vi = await db.vi_db_load(c)
+    #SET PERIOD
+    df_hc = df_hc[-100:]
+    df_vi = df_vi[-100:]
+    print(df_hc)
+
+    c.commit()
+    c.close()
+    cerebro = bt.Cerebro()
+    cerebro.broker.set_cash(1200000)
+
+    cerebro.addstrategy(vi_strategy)
+    dt0 = bt.feeds.PandasData(dataname=df_hc, datetime='DT',high='HIGH',low='LOW',close='CLOSE',open='OPEN')
+
+    # data0 = bt.feeds.YahooFinanceData(dataname='AAPL', fromdate=datetime(2011, 1, 1),
+    #                                 todate=datetime(2012, 12, 31))
+    cerebro.adddata(dt0)
+    print('Starting Portfolio Value: %.2f' % cerebro.broker.getvalue())
+
+    cerebro.run()
+    cerebro.plot()
+
+    print('Final Portfolio Value: %.2f' % cerebro.broker.getvalue())
+
+
+if __name__ == '__main__':
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(main())
+
+# 11:16 시작 # 1,000 datapoints
+#realtime 
+# 12:29 시작 # 100 dtps
